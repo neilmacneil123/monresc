@@ -13,8 +13,8 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Configuration
-$TopProcessCount = 8  # Increased from 5 to 8 when sections are hidden
-$RefreshInterval = 2  # seconds
+$TopProcessCount = 8  # Base number of processes (dynamically adjusts)
+$RefreshInterval = 1  # seconds - reduced for more responsive key detection
 $GraphWidth = 50
 $HistorySize = 20
 
@@ -35,47 +35,32 @@ $netHistory = @()
 $previousNetBytes = 0
 $previousTime = Get-Date
 
-# Keyboard handling
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-
-public class KeyHandler {
-    [DllImport("user32.dll")]
-    public static extern short GetAsyncKeyState(int vKey);
-    
-    public static bool IsKeyPressed(int vKey) {
-        return (GetAsyncKeyState(vKey) & 0x8000) != 0;
-    }
-}
-"@
-
 function Check-KeyPress {
-    # Space = 0x20, C = 0x43, M = 0x4D, D = 0x44, N = 0x4E
-    if ([KeyHandler]::IsKeyPressed(0x20)) {
-        $script:showProcesses = -not $script:showProcesses
-        Start-Sleep -Milliseconds 200  # Debounce
-        return $true
-    }
-    if ([KeyHandler]::IsKeyPressed(0x43)) {  # C key
-        $script:showCPU = -not $script:showCPU
-        Start-Sleep -Milliseconds 200
-        return $true
-    }
-    if ([KeyHandler]::IsKeyPressed(0x4D)) {  # M key
-        $script:showMemory = -not $script:showMemory
-        Start-Sleep -Milliseconds 200
-        return $true
-    }
-    if ([KeyHandler]::IsKeyPressed(0x44)) {  # D key
-        $script:showDisk = -not $script:showDisk
-        Start-Sleep -Milliseconds 200
-        return $true
-    }
-    if ([KeyHandler]::IsKeyPressed(0x4E)) {  # N key
-        $script:showNetwork = -not $script:showNetwork
-        Start-Sleep -Milliseconds 200
-        return $true
+    if ([Console]::KeyAvailable) {
+        $key = [Console]::ReadKey($true)
+        
+        switch ($key.Key) {
+            'Spacebar' {
+                $script:showProcesses = -not $script:showProcesses
+                return $true
+            }
+            'C' {
+                $script:showCPU = -not $script:showCPU
+                return $true
+            }
+            'M' {
+                $script:showMemory = -not $script:showMemory
+                return $true
+            }
+            'D' {
+                $script:showDisk = -not $script:showDisk
+                return $true
+            }
+            'N' {
+                $script:showNetwork = -not $script:showNetwork
+                return $true
+            }
+        }
     }
     return $false
 }
@@ -324,6 +309,7 @@ function Get-DynamicProcessCount {
 # Main loop
 Write-Host "Starting Resource Monitor..." -ForegroundColor Cyan
 Write-Host "Controls: SPACE=Toggle View | C=CPU | M=Memory | D=Disk | N=Network | Ctrl+C=Exit" -ForegroundColor Yellow
+Write-Host "TIP: Make sure this window has focus for keyboard controls to work!" -ForegroundColor Yellow
 Write-Host ""
 Start-Sleep -Seconds 2
 
@@ -356,8 +342,9 @@ try {
         if ($maxDisk -eq 0) { $maxDisk = 1 }
         if ($maxNet -eq 0) { $maxNet = 1 }
         
-        # Get dynamic process count
+        # Get dynamic process count and visible section count
         $dynamicProcessCount = Get-DynamicProcessCount
+        $visibleSections = Get-VisibleSectionCount
         
         # Clear screen and display
         Clear-Screen
@@ -368,6 +355,11 @@ try {
         Write-Host "            WINDOWS RESOURCE MONITOR - $timestamp - $modeText" -ForegroundColor Cyan
         Write-Host "===============================================================================" -ForegroundColor Cyan
         Write-Host "Controls: [SPACE]=Toggle | [C]=CPU | [M]=Memory | [D]=Disk | [N]=Network" -ForegroundColor DarkGray
+        
+        # Show process count info in processes view
+        if ($script:showProcesses) {
+            Write-Host "Showing $dynamicProcessCount processes per section ($visibleSections sections visible)" -ForegroundColor DarkGray
+        }
         Write-Host ""
         
         if (-not $script:showProcesses) {
@@ -461,6 +453,11 @@ try {
                 Write-Host ("+" + ("-" * 78)) -ForegroundColor Yellow
                 Write-Host ""
             }
+            else {
+                Write-Host "+-- TOP PROCESSES BY CPU [HIDDEN - Press C to show] " -NoNewline -ForegroundColor DarkGray
+                Write-Host ("-" * 27) -ForegroundColor DarkGray
+                Write-Host ""
+            }
             
             if ($script:showMemory) {
                 Write-Host "+-- TOP PROCESSES BY MEMORY " -NoNewline -ForegroundColor DarkCyan
@@ -477,6 +474,11 @@ try {
                     Write-Host ("{0,8}" -f $proc.Id) -ForegroundColor Gray
                 }
                 Write-Host ("+" + ("-" * 78)) -ForegroundColor DarkCyan
+                Write-Host ""
+            }
+            else {
+                Write-Host "+-- TOP PROCESSES BY MEMORY [HIDDEN - Press M to show] " -NoNewline -ForegroundColor DarkGray
+                Write-Host ("-" * 23) -ForegroundColor DarkGray
                 Write-Host ""
             }
             
@@ -501,6 +503,11 @@ try {
                 Write-Host ("+" + ("-" * 78)) -ForegroundColor Blue
                 Write-Host ""
             }
+            else {
+                Write-Host "+-- TOP PROCESSES BY DISK I/O [HIDDEN - Press D to show] " -NoNewline -ForegroundColor DarkGray
+                Write-Host ("-" * 21) -ForegroundColor DarkGray
+                Write-Host ""
+            }
             
             if ($script:showNetwork) {
                 Write-Host "+-- TOP PROCESSES BY NETWORK (Estimated) " -NoNewline -ForegroundColor Red
@@ -517,6 +524,11 @@ try {
                     Write-Host ("{0,8}" -f $proc.Id) -ForegroundColor Gray
                 }
                 Write-Host ("+" + ("-" * 78)) -ForegroundColor Red
+                Write-Host ""
+            }
+            else {
+                Write-Host "+-- TOP PROCESSES BY NETWORK [HIDDEN - Press N to show] " -NoNewline -ForegroundColor DarkGray
+                Write-Host ("-" * 22) -ForegroundColor DarkGray
                 Write-Host ""
             }
         }

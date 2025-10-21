@@ -6,17 +6,18 @@
 .NOTES
     Press Ctrl+C to exit
     Press SPACE to toggle between Stats and Processes view
-    Press C, M, D, N to toggle individual sections (CPU, Memory, Disk, Network)
+    In Stats View: C, M, D, N toggle individual sections
+    In Processes View: C, M, D, N show ONLY that resource's processes
 #>
 
 # Set console to UTF-8 for proper character display
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Configuration
-$TopProcessCount = 8  # Base number of processes (dynamically adjusts)
 $RefreshInterval = 1  # seconds - reduced for more responsive key detection
 $GraphWidth = 50
 $HistorySize = 20
+$MaxProcessDisplay = 30  # Maximum processes to show in full-screen mode
 
 # View state
 $script:showProcesses = $false
@@ -24,6 +25,7 @@ $script:showCPU = $true
 $script:showMemory = $true
 $script:showDisk = $true
 $script:showNetwork = $true
+$script:processViewMode = "all"  # all, cpu, memory, disk, network
 
 # Initialize history arrays
 $cpuHistory = @()
@@ -45,20 +47,51 @@ function Check-KeyPress {
                 return $true
             }
             'C' {
-                $script:showCPU = -not $script:showCPU
+                if ($script:showProcesses) {
+                    # In Processes View: Show only CPU
+                    $script:processViewMode = "cpu"
+                } else {
+                    # In Stats View: Toggle CPU section
+                    $script:showCPU = -not $script:showCPU
+                }
                 return $true
             }
             'M' {
-                $script:showMemory = -not $script:showMemory
+                if ($script:showProcesses) {
+                    # In Processes View: Show only Memory
+                    $script:processViewMode = "memory"
+                } else {
+                    # In Stats View: Toggle Memory section
+                    $script:showMemory = -not $script:showMemory
+                }
                 return $true
             }
             'D' {
-                $script:showDisk = -not $script:showDisk
+                if ($script:showProcesses) {
+                    # In Processes View: Show only Disk
+                    $script:processViewMode = "disk"
+                } else {
+                    # In Stats View: Toggle Disk section
+                    $script:showDisk = -not $script:showDisk
+                }
                 return $true
             }
             'N' {
-                $script:showNetwork = -not $script:showNetwork
+                if ($script:showProcesses) {
+                    # In Processes View: Show only Network
+                    $script:processViewMode = "network"
+                } else {
+                    # In Stats View: Toggle Network section
+                    $script:showNetwork = -not $script:showNetwork
+                }
                 return $true
+            }
+            'A' {
+                if ($script:showProcesses) {
+                    # In Processes View: Show all sections
+                    $script:processViewMode = "all"
+                    return $true
+                }
             }
         }
     }
@@ -249,6 +282,16 @@ function Get-TopProcessesByDisk {
             Select-Object -First $count |
             Select-Object @{Name='Name';Expression={$_.InstanceName}},
                           @{Name='DiskIO(B/s)';Expression={[math]::Round($_.CookedValue, 0)}},
+                          @{Name='Path';Expression={
+                              try {
+                                  $proc = Get-Process -Name $_.InstanceName -ErrorAction SilentlyContinue | Select-Object -First 1
+                                  if ($proc -and $proc.Path) {
+                                      $proc.Path
+                                  } else {
+                                      "N/A"
+                                  }
+                              } catch { "N/A" }
+                          }},
                           @{Name='PID';Expression={
                               try {
                                   (Get-Process -Name $_.InstanceName -ErrorAction SilentlyContinue | Select-Object -First 1).Id
@@ -296,8 +339,15 @@ function Get-VisibleSectionCount {
 }
 
 function Get-DynamicProcessCount {
+    param([string]$mode = "all")
+    
+    if ($mode -ne "all") {
+        # Single section mode - show maximum processes
+        return $MaxProcessDisplay
+    }
+    
+    # Multi-section mode - adjust based on visible sections
     $visibleSections = Get-VisibleSectionCount
-    # Adjust process count based on available screen space
     switch ($visibleSections) {
         0 { return 20 }
         1 { return 15 }
@@ -308,8 +358,9 @@ function Get-DynamicProcessCount {
 
 # Main loop
 Write-Host "Starting Resource Monitor..." -ForegroundColor Cyan
-Write-Host "Controls: SPACE=Toggle View | C=CPU | M=Memory | D=Disk | N=Network | Ctrl+C=Exit" -ForegroundColor Yellow
-Write-Host "TIP: Make sure this window has focus for keyboard controls to work!" -ForegroundColor Yellow
+Write-Host "Stats View: C/M/D/N toggle sections | SPACE=Switch to Processes" -ForegroundColor Yellow
+Write-Host "Processes View: C=CPU only | M=Memory only | D=Disk only | N=Network only | A=All | SPACE=Switch to Stats" -ForegroundColor Yellow
+Write-Host "Make sure this window has focus! | Ctrl+C=Exit" -ForegroundColor Yellow
 Write-Host ""
 Start-Sleep -Seconds 2
 
@@ -342,9 +393,8 @@ try {
         if ($maxDisk -eq 0) { $maxDisk = 1 }
         if ($maxNet -eq 0) { $maxNet = 1 }
         
-        # Get dynamic process count and visible section count
-        $dynamicProcessCount = Get-DynamicProcessCount
-        $visibleSections = Get-VisibleSectionCount
+        # Get dynamic process count
+        $dynamicProcessCount = Get-DynamicProcessCount -mode $script:processViewMode
         
         # Clear screen and display
         Clear-Screen
@@ -354,11 +404,11 @@ try {
         $modeText = if ($script:showProcesses) { "PROCESSES VIEW" } else { "STATS VIEW" }
         Write-Host "            WINDOWS RESOURCE MONITOR - $timestamp - $modeText" -ForegroundColor Cyan
         Write-Host "===============================================================================" -ForegroundColor Cyan
-        Write-Host "Controls: [SPACE]=Toggle | [C]=CPU | [M]=Memory | [D]=Disk | [N]=Network" -ForegroundColor DarkGray
         
-        # Show process count info in processes view
         if ($script:showProcesses) {
-            Write-Host "Showing $dynamicProcessCount processes per section ($visibleSections sections visible)" -ForegroundColor DarkGray
+            Write-Host "Mode: [C]=CPU only | [M]=Memory only | [D]=Disk only | [N]=Network only | [A]=All sections | [SPACE]=Stats" -ForegroundColor DarkGray
+        } else {
+            Write-Host "Controls: [SPACE]=Processes | [C]=CPU | [M]=Memory | [D]=Disk | [N]=Network" -ForegroundColor DarkGray
         }
         Write-Host ""
         
@@ -432,115 +482,173 @@ try {
                 Write-Host ("+" + ("-" * 78)) -ForegroundColor Red
                 Write-Host ""
             }
+            
+            # Status bar
+            $statusParts = @()
+            if ($script:showCPU) { $statusParts += "CPU:ON" } else { $statusParts += "CPU:OFF" }
+            if ($script:showMemory) { $statusParts += "MEM:ON" } else { $statusParts += "MEM:OFF" }
+            if ($script:showDisk) { $statusParts += "DISK:ON" } else { $statusParts += "DISK:OFF" }
+            if ($script:showNetwork) { $statusParts += "NET:ON" } else { $statusParts += "NET:OFF" }
+            $statusBar = $statusParts -join " | "
+            Write-Host "Status: $statusBar" -ForegroundColor DarkGray
         }
         else {
-            # Processes View - Show top processes for enabled sections
+            # Processes View - Show based on selected mode
             
-            if ($script:showCPU) {
-                Write-Host "+-- TOP PROCESSES BY CPU " -NoNewline -ForegroundColor Yellow
-                Write-Host ("-" * 54) -ForegroundColor Yellow
-                $topCPU = Get-TopProcessesByCPU -count $dynamicProcessCount
-                Write-Host ("| {0,-30} {1,10} {2,12} {3,8}" -f "Name", "CPU(s)", "Memory(MB)", "PID") -ForegroundColor White
-                Write-Host "|" -NoNewline -ForegroundColor Yellow
-                Write-Host ("-" * 78) -ForegroundColor DarkGray
-                foreach ($proc in $topCPU) {
-                    Write-Host "| " -NoNewline -ForegroundColor Yellow
-                    Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
-                    Write-Host ("{0,10:N2}" -f $proc.CPU) -NoNewline -ForegroundColor Green
-                    Write-Host ("{0,12:N2}" -f $proc.'Memory(MB)') -NoNewline -ForegroundColor Cyan
-                    Write-Host ("{0,8}" -f $proc.Id) -ForegroundColor Gray
+            switch ($script:processViewMode) {
+                "cpu" {
+                    Write-Host "=== TOP PROCESSES BY CPU (Showing $dynamicProcessCount) ===" -ForegroundColor Yellow
+                    Write-Host ""
+                    $topCPU = Get-TopProcessesByCPU -count $dynamicProcessCount
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Yellow
+                    Write-Host ("| {0,-30} {1,10} {2,12} {3,8} |" -f "Name", "CPU(s)", "Memory(MB)", "PID") -ForegroundColor White
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Yellow
+                    foreach ($proc in $topCPU) {
+                        Write-Host "| " -NoNewline -ForegroundColor Yellow
+                        Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
+                        Write-Host ("{0,10:N2}" -f $proc.CPU) -NoNewline -ForegroundColor Green
+                        Write-Host ("{0,12:N2}" -f $proc.'Memory(MB)') -NoNewline -ForegroundColor Cyan
+                        Write-Host ("{0,8}" -f $proc.Id) -NoNewline -ForegroundColor Gray
+                        Write-Host " |" -ForegroundColor Yellow
+                    }
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Yellow
                 }
-                Write-Host ("+" + ("-" * 78)) -ForegroundColor Yellow
-                Write-Host ""
-            }
-            else {
-                Write-Host "+-- TOP PROCESSES BY CPU [HIDDEN - Press C to show] " -NoNewline -ForegroundColor DarkGray
-                Write-Host ("-" * 27) -ForegroundColor DarkGray
-                Write-Host ""
-            }
-            
-            if ($script:showMemory) {
-                Write-Host "+-- TOP PROCESSES BY MEMORY " -NoNewline -ForegroundColor DarkCyan
-                Write-Host ("-" * 51) -ForegroundColor DarkCyan
-                $topMem = Get-TopProcessesByMemory -count $dynamicProcessCount
-                Write-Host ("| {0,-30} {1,10} {2,12} {3,8}" -f "Name", "CPU(s)", "Private(MB)", "PID") -ForegroundColor White
-                Write-Host "|" -NoNewline -ForegroundColor DarkCyan
-                Write-Host ("-" * 78) -ForegroundColor DarkGray
-                foreach ($proc in $topMem) {
-                    Write-Host "| " -NoNewline -ForegroundColor DarkCyan
-                    Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
-                    Write-Host ("{0,10:N2}" -f $proc.CPU) -NoNewline -ForegroundColor Green
-                    Write-Host ("{0,12:N2}" -f $proc.'Private(MB)') -NoNewline -ForegroundColor Magenta
-                    Write-Host ("{0,8}" -f $proc.Id) -ForegroundColor Gray
+                "memory" {
+                    Write-Host "=== TOP PROCESSES BY MEMORY (Showing $dynamicProcessCount) ===" -ForegroundColor Magenta
+                    Write-Host ""
+                    $topMem = Get-TopProcessesByMemory -count $dynamicProcessCount
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Magenta
+                    Write-Host ("| {0,-30} {1,10} {2,12} {3,8} |" -f "Name", "CPU(s)", "Private(MB)", "PID") -ForegroundColor White
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Magenta
+                    foreach ($proc in $topMem) {
+                        Write-Host "| " -NoNewline -ForegroundColor Magenta
+                        Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
+                        Write-Host ("{0,10:N2}" -f $proc.CPU) -NoNewline -ForegroundColor Green
+                        Write-Host ("{0,12:N2}" -f $proc.'Private(MB)') -NoNewline -ForegroundColor Cyan
+                        Write-Host ("{0,8}" -f $proc.Id) -NoNewline -ForegroundColor Gray
+                        Write-Host " |" -ForegroundColor Magenta
+                    }
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Magenta
                 }
-                Write-Host ("+" + ("-" * 78)) -ForegroundColor DarkCyan
-                Write-Host ""
-            }
-            else {
-                Write-Host "+-- TOP PROCESSES BY MEMORY [HIDDEN - Press M to show] " -NoNewline -ForegroundColor DarkGray
-                Write-Host ("-" * 23) -ForegroundColor DarkGray
-                Write-Host ""
-            }
-            
-            if ($script:showDisk) {
-                Write-Host "+-- TOP PROCESSES BY DISK I/O " -NoNewline -ForegroundColor Blue
-                Write-Host ("-" * 48) -ForegroundColor Blue
-                $topDisk = Get-TopProcessesByDisk -count $dynamicProcessCount
-                if ($topDisk.Count -gt 0) {
-                    Write-Host ("| {0,-40} {1,15} {2,8}" -f "Name", "Disk I/O (B/s)", "PID") -ForegroundColor White
-                    Write-Host "|" -NoNewline -ForegroundColor Blue
-                    Write-Host ("-" * 78) -ForegroundColor DarkGray
-                    foreach ($proc in $topDisk) {
-                        Write-Host "| " -NoNewline -ForegroundColor Blue
-                        Write-Host ("{0,-40}" -f $proc.Name.Substring(0, [math]::Min(40, $proc.Name.Length))) -NoNewline -ForegroundColor White
-                        Write-Host ("{0,15:N0}" -f $proc.'DiskIO(B/s)') -NoNewline -ForegroundColor Yellow
-                        Write-Host ("{0,8}" -f $proc.PID) -ForegroundColor Gray
+                "disk" {
+                    Write-Host "=== TOP PROCESSES BY DISK I/O (Showing $dynamicProcessCount) ===" -ForegroundColor Blue
+                    Write-Host ""
+                    $topDisk = Get-TopProcessesByDisk -count $dynamicProcessCount
+                    if ($topDisk.Count -gt 0) {
+                        Write-Host ("+{0}+" -f ("-" * 118)) -ForegroundColor Blue
+                        Write-Host ("| {0,-20} {1,8} {2,15} {3,-60} |" -f "Name", "PID", "Disk I/O (B/s)", "Path") -ForegroundColor White
+                        Write-Host ("+{0}+" -f ("-" * 118)) -ForegroundColor Blue
+                        foreach ($proc in $topDisk) {
+                            Write-Host "| " -NoNewline -ForegroundColor Blue
+                            Write-Host ("{0,-20}" -f $proc.Name.Substring(0, [math]::Min(20, $proc.Name.Length))) -NoNewline -ForegroundColor White
+                            Write-Host ("{0,8}" -f $proc.PID) -NoNewline -ForegroundColor Gray
+                            Write-Host ("{0,15:N0}" -f $proc.'DiskIO(B/s)') -NoNewline -ForegroundColor Yellow
+                            $pathDisplay = if ($proc.Path -and $proc.Path -ne "N/A") { $proc.Path.Substring(0, [math]::Min(60, $proc.Path.Length)) } else { "N/A" }
+                            Write-Host (" {0,-60}" -f $pathDisplay) -NoNewline -ForegroundColor Cyan
+                            Write-Host " |" -ForegroundColor Blue
+                        }
+                        Write-Host ("+{0}+" -f ("-" * 118)) -ForegroundColor Blue
+                    }
+                    else {
+                        Write-Host "No disk I/O data available" -ForegroundColor Gray
                     }
                 }
-                else {
-                    Write-Host "| No disk I/O data available" -ForegroundColor Gray
+                "network" {
+                    Write-Host "=== TOP PROCESSES BY NETWORK - Estimated (Showing $dynamicProcessCount) ===" -ForegroundColor Red
+                    Write-Host ""
+                    $topNet = Get-TopProcessesByNetwork -count $dynamicProcessCount
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Red
+                    Write-Host ("| {0,-30} {1,15} {2,12} {3,8} |" -f "Name", "Status", "Memory(MB)", "PID") -ForegroundColor White
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Red
+                    foreach ($proc in $topNet) {
+                        Write-Host "| " -NoNewline -ForegroundColor Red
+                        Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
+                        Write-Host ("{0,15}" -f $proc.'Network(Est)') -NoNewline -ForegroundColor Green
+                        Write-Host ("{0,12:N2}" -f $proc.'Memory(MB)') -NoNewline -ForegroundColor Cyan
+                        Write-Host ("{0,8}" -f $proc.Id) -NoNewline -ForegroundColor Gray
+                        Write-Host " |" -ForegroundColor Red
+                    }
+                    Write-Host ("+{0}+" -f ("-" * 78)) -ForegroundColor Red
                 }
-                Write-Host ("+" + ("-" * 78)) -ForegroundColor Blue
-                Write-Host ""
-            }
-            else {
-                Write-Host "+-- TOP PROCESSES BY DISK I/O [HIDDEN - Press D to show] " -NoNewline -ForegroundColor DarkGray
-                Write-Host ("-" * 21) -ForegroundColor DarkGray
-                Write-Host ""
+                default {
+                    # Show all sections
+                    $compactCount = Get-DynamicProcessCount -mode "all"
+                    
+                    Write-Host "+-- TOP PROCESSES BY CPU " -NoNewline -ForegroundColor Yellow
+                    Write-Host ("-" * 54) -ForegroundColor Yellow
+                    $topCPU = Get-TopProcessesByCPU -count $compactCount
+                    Write-Host ("| {0,-30} {1,10} {2,12} {3,8}" -f "Name", "CPU(s)", "Memory(MB)", "PID") -ForegroundColor White
+                    Write-Host "|" -NoNewline -ForegroundColor Yellow
+                    Write-Host ("-" * 78) -ForegroundColor DarkGray
+                    foreach ($proc in $topCPU) {
+                        Write-Host "| " -NoNewline -ForegroundColor Yellow
+                        Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
+                        Write-Host ("{0,10:N2}" -f $proc.CPU) -NoNewline -ForegroundColor Green
+                        Write-Host ("{0,12:N2}" -f $proc.'Memory(MB)') -NoNewline -ForegroundColor Cyan
+                        Write-Host ("{0,8}" -f $proc.Id) -ForegroundColor Gray
+                    }
+                    Write-Host ("+" + ("-" * 78)) -ForegroundColor Yellow
+                    Write-Host ""
+                    
+                    Write-Host "+-- TOP PROCESSES BY MEMORY " -NoNewline -ForegroundColor DarkCyan
+                    Write-Host ("-" * 51) -ForegroundColor DarkCyan
+                    $topMem = Get-TopProcessesByMemory -count $compactCount
+                    Write-Host ("| {0,-30} {1,10} {2,12} {3,8}" -f "Name", "CPU(s)", "Private(MB)", "PID") -ForegroundColor White
+                    Write-Host "|" -NoNewline -ForegroundColor DarkCyan
+                    Write-Host ("-" * 78) -ForegroundColor DarkGray
+                    foreach ($proc in $topMem) {
+                        Write-Host "| " -NoNewline -ForegroundColor DarkCyan
+                        Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
+                        Write-Host ("{0,10:N2}" -f $proc.CPU) -NoNewline -ForegroundColor Green
+                        Write-Host ("{0,12:N2}" -f $proc.'Private(MB)') -NoNewline -ForegroundColor Magenta
+                        Write-Host ("{0,8}" -f $proc.Id) -ForegroundColor Gray
+                    }
+                    Write-Host ("+" + ("-" * 78)) -ForegroundColor DarkCyan
+                    Write-Host ""
+                    
+                    Write-Host "+-- TOP PROCESSES BY DISK I/O " -NoNewline -ForegroundColor Blue
+                    Write-Host ("-" * 48) -ForegroundColor Blue
+                    $topDisk = Get-TopProcessesByDisk -count $compactCount
+                    if ($topDisk.Count -gt 0) {
+                        Write-Host ("| {0,-20} {1,8} {2,15} {3,-25}" -f "Name", "PID", "Disk I/O (B/s)", "Path") -ForegroundColor White
+                        Write-Host "|" -NoNewline -ForegroundColor Blue
+                        Write-Host ("-" * 78) -ForegroundColor DarkGray
+                        foreach ($proc in $topDisk) {
+                            Write-Host "| " -NoNewline -ForegroundColor Blue
+                            Write-Host ("{0,-20}" -f $proc.Name.Substring(0, [math]::Min(20, $proc.Name.Length))) -NoNewline -ForegroundColor White
+                            Write-Host ("{0,8}" -f $proc.PID) -NoNewline -ForegroundColor Gray
+                            Write-Host ("{0,15:N0}" -f $proc.'DiskIO(B/s)') -NoNewline -ForegroundColor Yellow
+                            $pathDisplay = if ($proc.Path -and $proc.Path -ne "N/A") { $proc.Path.Substring(0, [math]::Min(25, $proc.Path.Length)) } else { "N/A" }
+                            Write-Host (" {0,-25}" -f $pathDisplay) -ForegroundColor Cyan
+                        }
+                    }
+                    else {
+                        Write-Host "| No disk I/O data available" -ForegroundColor Gray
+                    }
+                    Write-Host ("+" + ("-" * 78)) -ForegroundColor Blue
+                    Write-Host ""
+                    
+                    Write-Host "+-- TOP PROCESSES BY NETWORK (Estimated) " -NoNewline -ForegroundColor Red
+                    Write-Host ("-" * 37) -ForegroundColor Red
+                    $topNet = Get-TopProcessesByNetwork -count $compactCount
+                    Write-Host ("| {0,-30} {1,15} {2,12} {3,8}" -f "Name", "Status", "Memory(MB)", "PID") -ForegroundColor White
+                    Write-Host "|" -NoNewline -ForegroundColor Red
+                    Write-Host ("-" * 78) -ForegroundColor DarkGray
+                    foreach ($proc in $topNet) {
+                        Write-Host "| " -NoNewline -ForegroundColor Red
+                        Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
+                        Write-Host ("{0,15}" -f $proc.'Network(Est)') -NoNewline -ForegroundColor Green
+                        Write-Host ("{0,12:N2}" -f $proc.'Memory(MB)') -NoNewline -ForegroundColor Cyan
+                        Write-Host ("{0,8}" -f $proc.Id) -ForegroundColor Gray
+                    }
+                    Write-Host ("+" + ("-" * 78)) -ForegroundColor Red
+                }
             }
             
-            if ($script:showNetwork) {
-                Write-Host "+-- TOP PROCESSES BY NETWORK (Estimated) " -NoNewline -ForegroundColor Red
-                Write-Host ("-" * 37) -ForegroundColor Red
-                $topNet = Get-TopProcessesByNetwork -count $dynamicProcessCount
-                Write-Host ("| {0,-30} {1,15} {2,12} {3,8}" -f "Name", "Status", "Memory(MB)", "PID") -ForegroundColor White
-                Write-Host "|" -NoNewline -ForegroundColor Red
-                Write-Host ("-" * 78) -ForegroundColor DarkGray
-                foreach ($proc in $topNet) {
-                    Write-Host "| " -NoNewline -ForegroundColor Red
-                    Write-Host ("{0,-30}" -f $proc.Name.Substring(0, [math]::Min(30, $proc.Name.Length))) -NoNewline -ForegroundColor White
-                    Write-Host ("{0,15}" -f $proc.'Network(Est)') -NoNewline -ForegroundColor Green
-                    Write-Host ("{0,12:N2}" -f $proc.'Memory(MB)') -NoNewline -ForegroundColor Cyan
-                    Write-Host ("{0,8}" -f $proc.Id) -ForegroundColor Gray
-                }
-                Write-Host ("+" + ("-" * 78)) -ForegroundColor Red
-                Write-Host ""
-            }
-            else {
-                Write-Host "+-- TOP PROCESSES BY NETWORK [HIDDEN - Press N to show] " -NoNewline -ForegroundColor DarkGray
-                Write-Host ("-" * 22) -ForegroundColor DarkGray
-                Write-Host ""
-            }
+            Write-Host ""
+            Write-Host "Current Mode: " -NoNewline -ForegroundColor DarkGray
+            Write-Host $script:processViewMode.ToUpper() -ForegroundColor White
         }
-        
-        # Status bar
-        $statusParts = @()
-        if ($script:showCPU) { $statusParts += "CPU:ON" } else { $statusParts += "CPU:OFF" }
-        if ($script:showMemory) { $statusParts += "MEM:ON" } else { $statusParts += "MEM:OFF" }
-        if ($script:showDisk) { $statusParts += "DISK:ON" } else { $statusParts += "DISK:OFF" }
-        if ($script:showNetwork) { $statusParts += "NET:ON" } else { $statusParts += "NET:OFF" }
-        $statusBar = $statusParts -join " | "
-        Write-Host "Status: $statusBar" -ForegroundColor DarkGray
         
         # Update previous network values
         $previousNetBytes = $netUsage.Total

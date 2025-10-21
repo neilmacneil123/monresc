@@ -4,19 +4,13 @@ A real-time PowerShell resource monitor with interactive controls that displays 
 
 ## Features
 
-- **Real-time Monitoring** - Updates every 2 seconds
-- **Interactive Views** - Toggle between Stats View and Processes View
-- **Keyboard Controls** - Show/hide individual sections on the fly
-- **CPU Usage** - Overall CPU percentage with history graph
-- **Memory Usage** - RAM usage percentage and GB used/total
-- **Disk I/O** - Read/Write speeds with total throughput
-- **Network Usage** - Send/Receive speeds with total bandwidth
+- **Real-time Monitoring** - Updates every second
+- **Two Interactive Views**:
+  - **Stats View** - System metrics with graphs and history
+  - **Processes View** - Top processes by resource (can show all or focus on one)
+- **Flexible Display Modes** - View all resources or focus on a single one
 - **Visual Graphs** - ASCII bar graphs and sparkline history charts
-- **Top Processes** - Shows top 5-20 processes (depending on visible sections) by:
-  - **CPU usage** - sorted by highest CPU time
-  - **Memory usage** - sorted by Private Memory in MB
-  - **Disk I/O** - sorted by total bytes/sec
-  - **Network** - estimated active network processes
+- **Adaptive Process Count** - Shows 8-30 processes depending on view mode
 
 ## Requirements
 
@@ -28,102 +22,125 @@ A real-time PowerShell resource monitor with interactive controls that displays 
 
 ### Quick Start
 
-1. Open PowerShell as Administrator (right-click PowerShell → Run as Administrator)
-2. Navigate to the directory containing `ResourceMonitor.ps1`
-3. Run the script:
-
 ```powershell
 .\ResourceMonitor.ps1
 ```
 
+**Important**: Make sure the PowerShell window has focus for keyboard controls to work!
+
 ### Keyboard Controls
 
-Once running, use these keys to control the display:
+The controls behave differently depending on which view you're in:
 
+#### Stats View (Default)
 | Key | Action |
 |-----|--------|
-| **SPACE** | Toggle between Stats View and Processes View |
+| **SPACE** | Switch to Processes View |
 | **C** | Toggle CPU section on/off |
 | **M** | Toggle Memory section on/off |
 | **D** | Toggle Disk section on/off |
 | **N** | Toggle Network section on/off |
+
+#### Processes View
+| Key | Action |
+|-----|--------|
+| **SPACE** | Switch to Stats View |
+| **C** | Show ONLY CPU processes (up to 30) |
+| **M** | Show ONLY Memory processes (up to 30) |
+| **D** | Show ONLY Disk processes (up to 30) |
+| **N** | Show ONLY Network processes (up to 30) |
+| **A** | Show ALL sections (8 processes each) |
+
+#### Both Views
+| Key | Action |
+|-----|--------|
 | **Ctrl+C** | Exit the monitor |
 
-### Views
+### Views Explained
 
-**Stats View (Default)**
+**Stats View**
 - Shows real-time system metrics with graphs
-- Displays current values and historical trends
-- Visual bar graphs and sparklines
+- Each section can be toggled on/off independently
+- Displays current values, bar graphs, and historical sparklines
+- Perfect for monitoring overall system health
 
-**Processes View (Press SPACE)**
-- Shows top processes for each enabled resource
-- More processes visible when sections are hidden (up to 20)
-- Sorted by relevant metric (CPU time, Memory, Disk I/O)
+**Processes View - All Mode (Default)**
+- Shows top 8 processes for each resource type
+- Compact view showing all four sections
+- Quick overview of what's consuming resources
 
-### Dynamic Process Count
+**Processes View - Single Resource Mode**
+- Press C, M, D, or N to focus on ONE resource
+- Shows up to 30 processes for that resource
+- Fills the screen with detailed process information
+- Great for deep-diving into a specific resource bottleneck
 
-The number of processes shown adapts based on available screen space:
-- **All 4 sections visible**: 8 processes per section
-- **2-3 sections visible**: 10 processes per section
-- **1 section visible**: 15 processes per section
-- **No stats sections** (processes only): 20 processes per section
+### Example Workflows
 
-### If Execution Policy Prevents Running
+**Quick System Check**
+1. Start in Stats View to see overall metrics
+2. Press SPACE to see top processes
+3. Press C/M/D/N to investigate a specific resource
+4. Press A to return to all sections
+5. Press SPACE to return to Stats View
 
-If you encounter an execution policy error, run:
+**CPU Troubleshooting**
+1. Press SPACE to enter Processes View
+2. Press C to show only CPU processes
+3. View up to 30 processes sorted by CPU usage
+4. Identify the problematic process
+5. Press A or SPACE to exit focused view
 
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-Then try running the script again.
-
-### Exiting
-
-Press `Ctrl+C` to stop the monitor and exit.
+**Memory Leak Investigation**
+1. Press SPACE then M to focus on memory
+2. Watch the Private(MB) column for growing processes
+3. See up to 30 processes sorted by memory usage
 
 ## Display Examples
 
-### Stats View
+### Stats View - All Sections
 
 ```
 ===============================================================================
-            WINDOWS RESOURCE MONITOR - 2025-10-21 15:09:22 - STATS VIEW
+            WINDOWS RESOURCE MONITOR - 2025-10-21 15:33:31 - STATS VIEW
 ===============================================================================
-Controls: [SPACE]=Toggle | [C]=CPU | [M]=Memory | [D]=Disk | [N]=Network
+Controls: [SPACE]=Processes | [C]=CPU | [M]=Memory | [D]=Disk | [N]=Network
 
 +-- CPU USAGE -----------------------------------------------------------------
-| Current:  25.3% | #############.....................................
-| History: _........-..........-_........-..........-
+| Current:  23.4% | ############......................................
+| History: ........_....=--+--
++------------------------------------------------------------------------------
 
 +-- MEMORY USAGE --------------------------------------------------------------
-| Current:  45.8% | #######################...........................
-| Used:      7.32 GB / 16.00 GB
-| History: ___________===========================
+| Current:  88.4% | ############################################......
+| Used:    13.86 GB / 15.69 GB
+| History: @@@@@@@@@@@@@@@@@@@
++------------------------------------------------------------------------------
 
 +-- DISK I/O ------------------------------------------------------------------
-| Total:      1.25 MB/s | #########.....................................
-| Read:     512.00 KB/s
-| Write:    768.00 KB/s
-| History: _........-..=......+........*........#
+| Total:    454.22 KB/s | ##...............................................
+| Read:       0 B/s
+| Write:    454.22 KB/s
+| History: _____________X__+__
++------------------------------------------------------------------------------
 
 +-- NETWORK -------------------------------------------------------------------
-| Total:      2.10 MB/s | ##############....................................
-| Sent:     256.00 KB/s
-| Received:   1.85 MB/s
-| History: __________..............................
+| Total:      5.89 KB/s | #########.........................................
+| Sent:         561 B/s
+| Received:   5.35 KB/s
+| History: ..-____+..-....X#..
++------------------------------------------------------------------------------
 
 Status: CPU:ON | MEM:ON | DISK:ON | NET:ON
 ```
 
-### Processes View (after pressing SPACE)
+### Processes View - All Sections (8 per section)
 
 ```
 ===============================================================================
-            WINDOWS RESOURCE MONITOR - 2025-10-21 15:09:22 - PROCESSES VIEW
+            WINDOWS RESOURCE MONITOR - 2025-10-21 15:33:31 - PROCESSES VIEW
 ===============================================================================
-Controls: [SPACE]=Toggle | [C]=CPU | [M]=Memory | [D]=Disk | [N]=Network
+Mode: [C]=CPU only | [M]=Memory only | [D]=Disk only | [N]=Network only | [A]=All sections | [SPACE]=Stats
 
 +-- TOP PROCESSES BY CPU ------------------------------------------------------
 | Name                               CPU(s)   Memory(MB)      PID
@@ -133,89 +150,47 @@ Controls: [SPACE]=Toggle | [C]=CPU | [M]=Memory | [D]=Disk | [N]=Network
 | firefox                            32.18       678.90     9012
 | explorer                           12.45       256.34     3456
 | powershell                          5.67        89.12     7890
-| system                              3.21       123.45     4
+| system                              3.21       123.45        4
 | dwm                                 2.15        45.67     1111
 | msedge                              1.98       234.56     2222
++------------------------------------------------------------------------------
 
 +-- TOP PROCESSES BY MEMORY ---------------------------------------------------
 | Name                               CPU(s)  Private(MB)      PID
 |------------------------------------------------------------------------------
-| chrome                            125.45      1024.56     1234
-| firefox                            32.18       856.78     9012
-| code                               45.32       678.90     5678
-| msedge                             15.23       512.34     2345
-| explorer                           12.45       345.67     3456
-| outlook                            10.12       289.01     6789
-| teams                               8.45       234.56     7890
-| windows defender                    5.32       189.23     1357
+[...8 processes...]
++------------------------------------------------------------------------------
 
-+-- TOP PROCESSES BY DISK I/O -------------------------------------------------
-| Name                                         Disk I/O (B/s)      PID
-|------------------------------------------------------------------------------
-| chrome                                            15234567     1234
-| system                                             8901234        4
-| searchindexer                                      5678901     3456
-| windows defender                                   3456789     1357
-| code                                               2345678     5678
-| explorer                                           1234567     3456
-| firefox                                             901234     9012
-| outlook                                             567890     6789
+[Similar sections for DISK and NETWORK]
 
-+-- TOP PROCESSES BY NETWORK (Estimated) -------------------------------------
-| Name                              Status   Memory(MB)      PID
-|------------------------------------------------------------------------------
-| chrome                            Active       856.23     1234
-| firefox                           Active       678.90     9012
-| code                              Active       512.67     5678
-| teams                             Active       234.56     7890
-| outlook                           Active       289.01     6789
-| msedge                            Active       234.56     2222
-| discord                           Active       156.78     3333
-| spotify                           Active        98.45     4444
-
-Status: CPU:ON | MEM:ON | DISK:ON | NET:ON
+Current Mode: ALL
 ```
 
-### Selective Section Display (e.g., CPU and Memory only)
-
-Press **D** and **N** to hide Disk and Network sections:
+### Processes View - CPU Only (30 processes)
 
 ```
 ===============================================================================
-            WINDOWS RESOURCE MONITOR - 2025-10-21 15:09:22 - STATS VIEW
+            WINDOWS RESOURCE MONITOR - 2025-10-21 15:33:31 - PROCESSES VIEW
 ===============================================================================
-Controls: [SPACE]=Toggle | [C]=CPU | [M]=Memory | [D]=Disk | [N]=Network
+Mode: [C]=CPU only | [M]=Memory only | [D]=Disk only | [N]=Network only | [A]=All sections | [SPACE]=Stats
 
-+-- CPU USAGE -----------------------------------------------------------------
-| Current:  25.3% | #############.....................................
-| History: _........-..........-_........-..........-
+=== TOP PROCESSES BY CPU (Showing 30) ===
 
-+-- MEMORY USAGE --------------------------------------------------------------
-| Current:  45.8% | #######################...........................
-| Used:      7.32 GB / 16.00 GB
-| History: ___________===========================
++------------------------------------------------------------------------------+
+| Name                               CPU(s)   Memory(MB)      PID |
++------------------------------------------------------------------------------+
+| chrome                            125.45       856.23     1234 |
+| code                               45.32       512.67     5678 |
+| firefox                            32.18       678.90     9012 |
+| explorer                           12.45       256.34     3456 |
+| powershell                          5.67        89.12     7890 |
+| system                              3.21       123.45        4 |
+| dwm                                 2.15        45.67     1111 |
+| msedge                              1.98       234.56     2222 |
+[...22 more processes...]
++------------------------------------------------------------------------------+
 
-Status: CPU:ON | MEM:ON | DISK:OFF | NET:OFF
-```
-
-Press **SPACE** to see processes (now showing 10 processes per section):
-
-```
-+-- TOP PROCESSES BY CPU ------------------------------------------------------
-| Name                               CPU(s)   Memory(MB)      PID
-|------------------------------------------------------------------------------
-| chrome                            125.45       856.23     1234
-| code                               45.32       512.67     5678
-[...10 total processes...]
-
-+-- TOP PROCESSES BY MEMORY ---------------------------------------------------
-| Name                               CPU(s)  Private(MB)      PID
-|------------------------------------------------------------------------------
-| chrome                            125.45      1024.56     1234
-| firefox                            32.18       856.78     9012
-[...10 total processes...]
-
-Status: CPU:ON | MEM:ON | DISK:OFF | NET:OFF
+Current Mode: CPU
 ```
 
 ## Configuration
@@ -223,82 +198,86 @@ Status: CPU:ON | MEM:ON | DISK:OFF | NET:OFF
 You can modify these variables at the top of the script:
 
 ```powershell
-$TopProcessCount = 8        # Base number of processes (dynamically adjusts)
-$RefreshInterval = 2        # Refresh rate in seconds
+$RefreshInterval = 1        # Refresh rate in seconds
 $GraphWidth = 50           # Width of the bar graphs
 $HistorySize = 20          # Number of history points for sparkline
+$MaxProcessDisplay = 30    # Maximum processes in single-resource mode
 ```
 
 ## Color Coding
 
-- **CPU** - Green
-- **Memory** - Magenta
+- **CPU** - Yellow/Green
+- **Memory** - Magenta/DarkCyan
 - **Disk I/O** - Blue
 - **Network** - Red
 - **History Graphs** - Cyan
-- **Process Lists** - Yellow/DarkCyan headers
 - **Status Bar** - DarkGray
+
+## Process Information
+
+### CPU View
+- **CPU(s)** - Cumulative CPU time since process start
+- **Memory(MB)** - Current working set in megabytes
+- Sorted by highest CPU time
+
+### Memory View
+- **CPU(s)** - Cumulative CPU time
+- **Private(MB)** - Private memory (not shared)
+- Sorted by highest private memory usage
+
+### Disk View
+- **Disk I/O (B/s)** - Total bytes per second (read + write)
+- Sorted by highest I/O activity
+
+### Network View (Estimated)
+- **Status** - Shows "Active" for processes likely using network
+- **Memory(MB)** - Current working set
+- Note: Windows doesn't provide direct per-process network stats
 
 ## Notes
 
 - Running as Administrator provides more accurate metrics
-- The sparkline history shows the last 20 data points
-- Network statistics exclude virtual adapters (isatap, Teredo)
-- Memory shown is Private Memory (not Working Set) for process listing
-- CPU times are cumulative since process start
-- Disk I/O may show 0 if no disk activity is occurring
-- Network per-process monitoring is estimated (Windows doesn't provide direct per-process network counters)
-- Process count dynamically adjusts based on visible sections to maximize screen usage
-- Hidden sections are remembered when toggling between views
-
-## Workflow Examples
-
-**Monitoring System Performance**
-1. Start in Stats View to see overall system health
-2. Use sparklines to identify trends over time
-3. Toggle sections on/off to focus on specific resources
-
-**Identifying Resource-Heavy Processes**
-1. Press SPACE to switch to Processes View
-2. Hide sections you're not interested in (e.g., press D and N)
-3. See more processes for the remaining sections
-4. Press C or M to focus on just CPU or Memory
-
-**Comparing Before/After**
-1. Watch Stats View during normal operation
-2. Press SPACE to check which processes are consuming resources
-3. Press SPACE again to return to Stats View
-4. Monitor changes after closing heavy applications
-
-## Troubleshooting
-
-**Script won't run:**
-- Ensure you're using PowerShell (not Command Prompt)
-- Try running PowerShell as Administrator
-- Check execution policy: `Get-ExecutionPolicy`
-
-**Keys not responding:**
-- Make sure the PowerShell window is in focus
-- Some terminals may not support keyboard interception
-- Try clicking in the window before pressing keys
-
-**Performance counters not available:**
-- Some counters require Administrator privileges
-- Windows Performance Counter service may need to be running
-- Run: `services.msc` and ensure "Performance Counter DLL Host" is running
-
-**Display issues:**
-- Ensure your terminal window is at least 80 characters wide
-- Use a monospace font (Consolas, Cascadia Code, Courier New)
-- Some older terminals may not render colors correctly
+- Make sure the PowerShell window has focus for keyboard shortcuts
+- CPU times are cumulative since process start (not real-time %)
+- Network per-process monitoring is estimated (Windows limitation)
+- Single-resource mode shows up to 30 processes for detailed analysis
+- All-sections mode shows 8 processes per section for quick overview
 
 ## Tips
 
-- Hide sections you don't need to see more processes
-- Use SPACE to quickly compare stats vs processes
-- Watch the sparkline history for patterns over time
-- Check the status bar to see which sections are active
-- Run as Administrator for the most accurate metrics
+### Effective Usage
+1. **Start in Stats View** to see overall system health
+2. **Press SPACE** to check top processes across all resources
+3. **Press C/M/D/N** to focus on a specific bottleneck
+4. **Press A** to return to all-sections view
+5. **Press SPACE** to return to stats with graphs
+
+### Troubleshooting System Issues
+- **High CPU**: Press SPACE → C to see all CPU-intensive processes
+- **Memory Issues**: Press SPACE → M to see memory hogs
+- **Disk Slowness**: Press SPACE → D to see disk I/O culprits
+- **Network Activity**: Press SPACE → N to see active processes
+
+### Performance Monitoring
+- Watch sparklines in Stats View for trends
+- Use single-resource mode for detailed investigation
+- Toggle stats sections off to focus on specific metrics
+
+## Common Issues
+
+**Keys not working:**
+- Click on the PowerShell window to give it focus
+- Make sure you're not in another application
+- Try clicking and pressing the key again
+
+**No processes shown:**
+- Disk/Network counters may need Administrator privileges
+- Run PowerShell as Administrator for full functionality
+
+**Display issues:**
+- Ensure terminal is at least 80 characters wide
+- Use a monospace font (Consolas, Cascadia Code)
+- Check if your terminal supports ANSI colors
 
 ## License
 
